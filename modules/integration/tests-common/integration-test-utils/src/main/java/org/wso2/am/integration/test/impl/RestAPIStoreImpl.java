@@ -291,6 +291,13 @@ public class RestAPIStoreImpl {
         return response.getData();
     }
 
+    public ApplicationKeyDTO updateGrantTypes(String applicationId, String keyType, ApplicationKeyDTO applicationKeyDTO)
+            throws ApiException {
+        ApiResponse<ApplicationKeyDTO> apiResponse = applicationKeysApi
+                .applicationsApplicationIdKeysKeyTypePutWithHttpInfo(applicationId, keyType, applicationKeyDTO);
+        return apiResponse.getData();
+    }
+
     public APIKeyDTO generateAPIKeys(String applicationId, String keyType, int validityPeriod) throws ApiException {
         APIKeyGenerateRequestDTO keyGenerateRequestDTO = new APIKeyGenerateRequestDTO();
         keyGenerateRequestDTO.setValidityPeriod(validityPeriod);

@@ -26,9 +26,13 @@ import org.testng.annotations.Test;
 import org.wso2.am.integration.clients.publisher.api.ApiException;
 import org.wso2.am.integration.clients.publisher.api.v1.dto.APIDTO;
 import org.wso2.am.integration.clients.publisher.api.v1.dto.APIOperationsDTO;
+import org.wso2.am.integration.clients.store.api.v1.dto.APIInfoDTO;
+import org.wso2.am.integration.clients.store.api.v1.dto.APIListDTO;
 import org.wso2.am.integration.clients.store.api.v1.dto.ApplicationDTO;
+import org.wso2.am.integration.clients.store.api.v1.dto.ApplicationInfoDTO;
 import org.wso2.am.integration.clients.store.api.v1.dto.ApplicationKeyDTO;
 import org.wso2.am.integration.clients.store.api.v1.dto.ApplicationKeyGenerateRequestDTO;
+import org.wso2.am.integration.clients.store.api.v1.dto.ApplicationListDTO;
 import org.wso2.am.integration.test.ClientAuthenticator;
 import org.wso2.am.integration.test.impl.RestAPIPublisherImpl;
 import org.wso2.am.integration.test.impl.RestAPIStoreImpl;
@@ -108,17 +112,17 @@ public class DataPopulationTestCase extends ScenarioTestBase {
                 APIMIntegrationConstants.BACKEND_SERVER_INSTANCE, userMode);
         backEndServerUrl = new APIMURLBean(backEndServer.getContextUrls());
         subscriptionAvailableTenants.add(MultitenantConstants.SUPER_TENANT_DOMAIN_NAME);
-	setup();
+        setup();
     }
 
-    @Test(description = "populateData")
+//    @Test(description = "populateData")
     public void populateData() throws Exception {
         String dcrURL = "https://localhost:9443/client-registration/v0.16/register";
         String apiId;
         String applicationID;
         String subscriptionId = null;
         String accessToken = null;
-        for (int i = 1; i <= 100; i++) {
+        for (int i = 7; i <= 7; i++) {
             String tenantDomain = i + ScenarioTestConstants.TENANT_WSO2;
             String tenantAdminUsername = ADMIN_USERNAME + "@" + tenantDomain;
             String publisherUsername = i + API_CREATOR_PUBLISHER_USERNAME;
@@ -142,7 +146,7 @@ public class DataPopulationTestCase extends ScenarioTestBase {
                         API_CREATOR_PUBLISHER_PW, tenantDomain, baseUrl);
 
                 // Wait unlit throttle policies get deployed.
-                Thread.sleep(5000);
+//                Thread.sleep(5000);
                 for (int j = 1; j <= 10; j++) {
                     apiId = createAPI("SampleAPI" + "_" + i + "_" + j, "/customers" + "_" + i + "_" + j, "/", "1.0.0",
                             publisherUsername + "@" + tenantDomain, restAPIPublisherNew);
@@ -150,7 +154,7 @@ public class DataPopulationTestCase extends ScenarioTestBase {
                     log.info("API added successfully ID: " + apiId);
 
                     for (int k = 1; k <= 10; k++) {
-                        Thread.sleep(2000);
+//                        Thread.sleep(2000);
                         //Add devPortal user
                         createUserWithSubscriberRole(devPortalUsername + i + "_" + j + "_" + k, API_SUBSCRIBER_PW, tenantAdminUsername,
                                 TENANT_ADMIN_PW);
@@ -163,7 +167,7 @@ public class DataPopulationTestCase extends ScenarioTestBase {
                                 tenantDomain, baseUrl);
                         applicationID = createApplication("SampleApplication" + "_" + i + "_" + j + k, restAPIStoreNew);
 
-                        Thread.sleep(2000);
+//                        Thread.sleep(2000);
                         if (restAPIStoreNew.isAvailableInDevPortal(apiId, tenantDomain)) {
                             subscriptionId = createSubscription(apiId, applicationID, restAPIStoreNew);
                             accessToken = generateKeys(applicationID, restAPIStoreNew);
@@ -179,6 +183,114 @@ public class DataPopulationTestCase extends ScenarioTestBase {
         }
         log.info("All the artifacts deployed successfully");
     }
+
+
+//    @Test(description = "Update Grant Types")
+    public void regenerateTokens() {
+        String dcrURL = "https://localhost:9443/client-registration/v0.16/register";
+        for (int i = 1; i <= 100; i++) {
+            String tenantDomain = i + ScenarioTestConstants.TENANT_WSO2;
+            String devPortalUsername = i + API_SUBSCRIBER_USERNAME;
+
+            for (int j = 1; j <= 10; j++) {
+                for (int k = 1; k <= 10; k++) {
+
+                    ApplicationListDTO applicationList = null;
+                    RestAPIStoreImpl restAPIStoreNew = null;
+                    try {
+                        //DCR call for dev portal app.
+                        DCRParamRequest devPortalParamRequest = new DCRParamRequest(RestAPIStoreImpl.appName,
+                                RestAPIStoreImpl.callBackURL, RestAPIStoreImpl.tokenScope, RestAPIStoreImpl.appOwner,
+                                RestAPIStoreImpl.grantType, dcrURL, devPortalUsername + i + "_" + j + "_" + k, API_SUBSCRIBER_PW, tenantDomain);
+                        ClientAuthenticator.makeDCRRequest(devPortalParamRequest);
+                        restAPIStoreNew = new RestAPIStoreImpl(devPortalUsername + i + "_" + j + "_" + k, API_SUBSCRIBER_PW,
+                                tenantDomain, baseUrl);
+
+                        applicationList = restAPIStoreNew.getAllApps();
+                    } catch (Exception e) {
+                        log.error("Error getting devportal user for tenant: " + tenantDomain);
+                    }
+                    if (applicationList != null) {
+                        for (ApplicationInfoDTO applicationDTO : applicationList.getList()) {
+                            try {
+                                if(!applicationDTO.getName().equals("DefaultApplication")) {
+
+                                    ApplicationKeyDTO applicationKeyDTO = new ApplicationKeyDTO();
+                                    ArrayList grantTypes = new ArrayList();
+                                    grantTypes.add("client_credentials");
+                                    grantTypes.add("password");
+                                    grantTypes.add("refresh_token");
+                                    applicationKeyDTO.setSupportedGrantTypes(grantTypes);
+                                    restAPIStoreNew.updateGrantTypes(applicationDTO.getApplicationId(),
+                                            ApplicationKeyGenerateRequestDTO
+                                                    .KeyTypeEnum.PRODUCTION.getValue(), applicationKeyDTO);
+                                    log.info("Grant Types updated successfully for application: "
+                                            + applicationDTO.getApplicationId() + " tenant: " + tenantDomain);
+                                }
+                            } catch (Exception e) {
+                                log.error("Key generation failed for application: "
+                                        + applicationDTO.getApplicationId() + " tenant: " + tenantDomain);
+                            }
+                        }
+                    }
+                }
+            }
+            System.gc();
+        }
+        log.info("New Applications created successfully.");
+    }
+
+    @Test(description = "Create New Applications")
+    public void createNewApplication() {
+        String dcrURL = "https://localhost:9443/client-registration/v0.16/register";
+        for (int i = 7; i <= 7; i++) {
+            String tenantDomain = i + ScenarioTestConstants.TENANT_WSO2;
+            String devPortalUsername = i + API_SUBSCRIBER_USERNAME;
+
+            for (int j = 1; j <= 10; j++) {
+                for (int k = 1; k <= 10; k++) {
+
+                    ApplicationListDTO applicationList = null;
+                    RestAPIStoreImpl restAPIStoreNew = null;
+                    try {
+                        //DCR call for dev portal app.
+                        DCRParamRequest devPortalParamRequest = new DCRParamRequest(RestAPIStoreImpl.appName,
+                                RestAPIStoreImpl.callBackURL, RestAPIStoreImpl.tokenScope, RestAPIStoreImpl.appOwner,
+                                RestAPIStoreImpl.grantType, dcrURL, devPortalUsername + i + "_" + j + "_" + k, API_SUBSCRIBER_PW, tenantDomain);
+                        ClientAuthenticator.makeDCRRequest(devPortalParamRequest);
+                        restAPIStoreNew = new RestAPIStoreImpl(devPortalUsername + i + "_" + j + "_" + k, API_SUBSCRIBER_PW,
+                                tenantDomain, baseUrl);
+
+                    } catch (Exception e) {
+                        log.error("Error getting devportal user for tenant: " + tenantDomain);
+                    }
+                        try {
+                            HttpResponse response = restAPIStoreNew.createApplication("NEW_APPLICATION",
+                                    "NEW APPLICATION", APIMIntegrationConstants.APPLICATION_TIER.UNLIMITED,
+                                    ApplicationDTO.TokenTypeEnum.OAUTH);
+                            String applicationID = response.getData();
+                            log.info("Created new application successfully for application: "
+                                    + applicationID + " tenant: " + tenantDomain + " username:  " +
+                                    devPortalUsername + i + "_" + j + "_" + k);
+
+                            APIListDTO apis = restAPIStoreNew.getAllAPIs();
+                            restAPIStoreNew.createSubscription(apis.getList().get(k - 1).getId(), applicationID,
+                                    APIMIntegrationConstants.API_TIER.UNLIMITED);
+                            apis.getList().get(k - 1).getContext();
+                            log.info("Created new subscription successfully for application: "
+                                    + applicationID + " tenant: " + tenantDomain + " username:  " +
+                                    devPortalUsername + i + "_" + j + "_" + k);
+                        } catch (Exception e) {
+                            log.error("Failed application/ subscription creation for " + " tenant: " + tenantDomain + " username:  " +
+                                    devPortalUsername + i + "_" + j + "_" + k);
+                        }
+                }
+            }
+            System.gc();
+        }
+        log.info("All the key regenerated successfully");
+    }
+
 
     private String createAPI(String apiName, String apiContext, String apiResource, String apiVersion,
                              String apiProviderName, RestAPIPublisherImpl restAPIPublisher)
